@@ -66,9 +66,9 @@ $PAGE->navbar->add($currentcrumb);
 
 $renderer = $PAGE->get_renderer('mod_kalvidassign');
 
-if (has_mobile_flavor_enabled() && get_enable_html5()) {
-    $uiconf_id = get_player_uiconf('player');
-    $url = new moodle_url(htm5_javascript_url($uiconf_id));
+if (local_kaltura_has_mobile_flavor_enabled() && local_kaltura_get_enable_html5()) {
+    $uiconf_id = local_kaltura_get_player_uiconf('player');
+    $url = new moodle_url(local_kaltura_htm5_javascript_url($uiconf_id));
     $PAGE->requires->js($url, true);
     $url = new moodle_url('/local/kaltura/js/frameapi.js');
     $PAGE->requires->js($url, true);
@@ -87,14 +87,13 @@ $jsmodule = array(
                         'base',
                         'dom',
                         'node',
-                        'yui-min',
-                        'event-focus',
-                        'json-parse-min',
+                        'io-base',
+                        'json-parse',
                         ),
-'strings' => array(
-        array('video_converting', 'kalvidassign'),
-        array('previewvideo', 'kalvidassign'),
-        )
+    'strings' => array(
+            array('video_converting', 'kalvidassign'),
+            array('previewvideo', 'kalvidassign'),
+            )
 );
 
 
@@ -102,7 +101,7 @@ $courseid               = get_courseid_from_context($PAGE->context);
 $conversion_script      = "../../local/kaltura/check_conversion.php?courseid={$courseid}&entry_id=";
 $markup                 = $renderer->display_video_preview_markup();
 $markup                 .= $renderer->display_loading_markup();
-$uiconf_id              = get_player_uiconf('player');
+$uiconf_id              = local_kaltura_get_player_uiconf('player');
 
 $PAGE->requires->js_init_call('M.local_kaltura.video_asignment_submission_view',
                               array($conversion_script,
@@ -114,10 +113,12 @@ require_capability('mod/kalvidassign:gradesubmission', get_context_instance(CONT
 
 add_to_log($course->id, 'kalvidassign', 'view submissions page', 'grade_submissions.php?cmid='.$cm->id, $kalvidassignobj->id, $cm->id);
 
-$pref_form =  new gradepreferencesform(null, array('cmid' => $cm->id));
+$pref_form =  new kalvidassign_gradepreferences_form(null, array('cmid' => $cm->id, 'groupmode' => $cm->groupmode));
 $data = null;
 
 if ($data = $pref_form->get_data()) {
+    set_user_preference('kalvidassign_group_filter', $data->group_filter);
+
     set_user_preference('kalvidassign_filter', $data->filter);
 
     if ($data->perpage > 0) {
@@ -132,10 +133,14 @@ if ($data = $pref_form->get_data()) {
 
 }
 
+if (empty($data)) {
+    $data = new stdClass();
+}
 
-$data->filter = get_user_preferences('kalvidassign_filter', 0);
-$data->perpage = get_user_preferences('kalvidassign_perpage', 10);
-$data->quickgrade = get_user_preferences('kalvidassign_quickgrade', 0);
+$data->filter       = get_user_preferences('kalvidassign_filter', 0);
+$data->perpage      = get_user_preferences('kalvidassign_perpage', 10);
+$data->quickgrade   = get_user_preferences('kalvidassign_quickgrade', 0);
+$data->group_filter = get_user_preferences('kalvidassign_group_filter', 0);
 
 $grade_data = data_submitted();
 
@@ -184,7 +189,7 @@ if (!empty($grade_data->mode)) {
 
                 $grade = new stdClass();
                 $grade->userid = $userid;
-                $grade = get_submission_grade_object($kalvidassignobj->id, $userid);
+                $grade = kalvidassign_get_submission_grade_object($kalvidassignobj->id, $userid);
 
                 $kalvidassignobj->cmidnumber = $cm->idnumber;
 
@@ -234,7 +239,7 @@ if (!empty($grade_data->mode)) {
 
                 $grade = new stdClass();
                 $grade->userid = $userid;
-                $grade = get_submission_grade_object($kalvidassignobj->id, $userid);
+                $grade = kalvidassign_get_submission_grade_object($kalvidassignobj->id, $userid);
 
                 $kalvidassignobj->cmidnumber = $cm->idnumber;
 
@@ -252,8 +257,8 @@ if (!empty($grade_data->mode)) {
     }
 }
 
-$renderer->display_submissions_table($cm, $data->filter, $data->perpage, $data->quickgrade,
-                                     $tifirst, $tilast, $page);
+$renderer->display_submissions_table($cm, $data->group_filter, $data->filter, $data->perpage,
+                                     $data->quickgrade, $tifirst, $tilast, $page);
 
 $pref_form->set_data($data);
 $pref_form->display();
