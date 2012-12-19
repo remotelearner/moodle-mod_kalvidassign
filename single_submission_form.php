@@ -27,7 +27,7 @@ if (!defined('MOODLE_INTERNAL')) {
 
 require_once(dirname(dirname(dirname(__FILE__))) . '/course/moodleform_mod.php');
 
-class singlesubmissionform extends moodleform {
+class kalvidassign_singlesubmission_form extends moodleform {
 
     function definition() {
         global $CFG, $PAGE;
@@ -59,11 +59,17 @@ class singlesubmissionform extends moodleform {
         $timemodified   = '';
 
         if (!empty($submission->entry_id)) {
-            $entry_object = get_ready_entry_object($this->_customdata->submission->entry_id);
 
-            // Determine the type of video (See KALDEV-28)
-            if (!video_type_valid($entry_object)) {
-                $entry_object = get_ready_entry_object($entry_object->id, false);
+            $kaltura        = new kaltura_connection();
+            $connection     = $kaltura->get_connection(true, KALTURA_SESSION_LENGTH);
+            
+            if ($connection) {
+                $entry_object = local_kaltura_get_ready_entry_object($this->_customdata->submission->entry_id);
+    
+                // Determine the type of video (See KALDEV-28)
+                if (!local_kaltura_video_type_valid($entry_object)) {
+                    $entry_object = local_kaltura_get_ready_entry_object($entry_object->id, false);
+                }
             }
 
         }
@@ -77,17 +83,23 @@ class singlesubmissionform extends moodleform {
             $courseid = get_courseid_from_context($this->_customdata->context);
 
             // Set the session
-            $session = generate_kaltura_session(array($entry_object->id));
+            $session = local_kaltura_generate_kaltura_session(array($entry_object->id));
 
 
             $mform->addElement('static', 'description', get_string('submission', 'kalvidassign'),
-                               get_kdp_code($entry_object, 0, $courseid));
+                               local_kaltura_get_kdp_code($entry_object, 0, $courseid));
 
         } elseif (empty($entry_object) && isset($submission->timemodified) && !empty($submission->timemodified)) {
 
-            // an empty entry object and a time modified timestamp means the video is still converting
-            $mform->addElement('static', 'description', get_string('submission', 'kalvidassign'),
-                               get_string('video_converting', 'local_kaltura'));
+            if ($connection) {
+                // an empty entry object and a time modified timestamp means the video is still converting
+                $mform->addElement('static', 'description', get_string('submission', 'kalvidassign'),
+                                   get_string('video_converting', 'local_kaltura'));
+            } else {
+
+                $mform->addElement('static', 'description', get_string('submission', 'kalvidassign'),
+                                   get_string('conn_failed_alt', 'local_kaltura'));
+            }
         } else {
 
             // an empty entry object and an empty time modified tamstamp mean the student hasn't submitted anything
@@ -185,10 +197,6 @@ class singlesubmissionform extends moodleform {
             $mform->addElement('editor', 'submissioncomment_editor', get_string('feedback', 'kalvidassign').':', null, $this->get_editor_options() );
             $mform->setType('submissioncomment_editor', PARAM_RAW); // to be cleaned before display
 
-            if (!empty($submission)) {
-                $mform->setDefault('submissioncomment_editor', $submission->submissioncomment);
-            }
-
         }
 
 
@@ -213,9 +221,6 @@ class singlesubmissionform extends moodleform {
 
         $editoroptions = $this->get_editor_options();
 
-        $data = file_prepare_standard_editor($data->submission, 'submissioncomment', $editoroptions,
-                                             $this->_customdata->context, $editoroptions['component'],
-                                             null, null);
         return parent::set_data($data);
 
     }

@@ -52,7 +52,7 @@ $PAGE->set_title(format_string($kalvidassignobj->name));
 $PAGE->set_heading($course->fullname);
 
 
-if (assignemnt_submission_expired($kalvidassignobj)) {
+if (kalvidassign_assignemnt_submission_expired($kalvidassignobj)) {
     print_error('assignmentexpired', 'kalvidassign', 'course/view.php?id='. $course->id);
 }
 
@@ -129,7 +129,7 @@ $context = $PAGE->context;
 
 // Email an alert to the teacher
 if ($kalvidassignobj->emailteachers) {
-    email_teachers($cm, $kalvidassignobj->name, $submission, $context);
+    kalvidassign_email_teachers($cm, $kalvidassignobj->name, $submission, $context);
 }
 
 echo $OUTPUT->footer();

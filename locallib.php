@@ -42,7 +42,7 @@ require_once(dirname(dirname(dirname(__FILE__))) . '/lib/gradelib.php');
  * @param object - Kaltura instance video assignment object
  * @return bool - true if expired, otherwise false
  */
-function assignemnt_submission_expired($kalvidassign) {
+function kalvidassign_assignemnt_submission_expired($kalvidassign) {
     $expired = false;
 
     if ($kalvidassign->preventlate) {
@@ -52,7 +52,7 @@ function assignemnt_submission_expired($kalvidassign) {
     return $expired;
 }
 
-function submissions($mode) {
+function kalvidassign_submissions($mode) {
     //make user global so we can use the id
     global $USER, $OUTPUT, $DB, $PAGE;
 
@@ -80,7 +80,16 @@ function submissions($mode) {
     $function();
 }
 
-function get_submissions($kalvidassignid, $filter = '') {
+/**
+ * Retrieve a list of users who have submitted assignments
+ * 
+ * @param int - assignment instance id
+ * @param string - filter results by assignments that have been submitted or
+ * assignment that need to be graded or no filter at all
+ * 
+ * @return mixed - collection of users or false
+ */
+function kalvidassign_get_submissions($kalvidassignid, $filter = '') {
     global $DB;
 
     $where = '';
@@ -109,7 +118,7 @@ function get_submissions($kalvidassignid, $filter = '') {
 
 }
 
-function get_submission($kalvidassignid, $userid) {
+function kalvidassign_get_submission($kalvidassignid, $userid) {
     global $DB;
 
     $param = array('instanceid' => $kalvidassignid,
@@ -130,7 +139,7 @@ function get_submission($kalvidassignid, $userid) {
 
 }
 
-function get_submission_grade_object($instance_id, $userid) {
+function kalvidassign_get_submission_grade_object($instance_id, $userid) {
     global $DB;
 
     $param = array('kvid' => $instance_id,
@@ -151,7 +160,7 @@ function get_submission_grade_object($instance_id, $userid) {
     return $data;
 }
 
-function validate_cmid ($cmid) {
+function kalvidassign_validate_cmid ($cmid) {
     global $DB;
 
     if (! $cm = get_coursemodule_from_id('kalvidassign', $cmid)) {
@@ -170,7 +179,7 @@ function validate_cmid ($cmid) {
 
 }
 
-function display_lateness($timesubmitted, $timedue) {
+function kalvidassign_display_lateness($timesubmitted, $timedue) {
     if (!$timedue) {
         return '';
     }
@@ -184,10 +193,10 @@ function display_lateness($timesubmitted, $timedue) {
     }
 }
 
-function get_video_properties() {
+function kalvidassign_get_video_properties() {
     return array('width' => '400',
                  'height' => '365',
-                 'uiconf_id' => get_player_uiconf('player'),
+                 'uiconf_id' => local_kaltura_get_player_uiconf('player'),
                  'video_title' => 'Video assignment submission');
 }
 
@@ -196,7 +205,7 @@ function get_video_properties() {
  *
  * First checks whether the option to email teachers is set for this assignment.
  * Sends an email to ALL teachers in the course (or in the group if using separate groups).
- * Uses the methods email_teachers_text() and email_teachers_html() to construct the content.
+ * Uses the methods kalvidassign_email_teachers_text() and kalvidassign_email_teachers_html() to construct the content.
  *
  * @global object
  * @global object
@@ -206,12 +215,12 @@ function get_video_properties() {
  * @param object - $context
  * @return void
  */
-function email_teachers($cm, $name, $submission, $context) {
+function kalvidassign_email_teachers($cm, $name, $submission, $context) {
     global $CFG, $DB;
 
     $user = $DB->get_record('user', array('id'=>$submission->userid));
 
-    if ($teachers = get_graders($cm, $user, $context)) {
+    if ($teachers = kalvidassign_get_graders($cm, $user, $context)) {
 
         $strassignments = get_string('modulenameplural', 'kalvidassign');
         $strassignment  = get_string('modulename', 'kalvidassign');
@@ -227,8 +236,8 @@ function email_teachers($cm, $name, $submission, $context) {
             $info->cmid     = $cm->id;
 
             $postsubject = $strsubmitted.': '.$user->username .' -> '. $name;
-            $posttext = email_teachers_text($info);
-            $posthtml = ($teacher->mailformat == 1) ? email_teachers_html($info) : '';
+            $posttext = kalvidassign_email_teachers_text($info);
+            $posthtml = ($teacher->mailformat == 1) ? kalvidassign_email_teachers_html($info) : '';
 
             $eventdata = new stdClass();
             $eventdata->modulename       = 'kalvidassign';
@@ -259,7 +268,7 @@ function email_teachers($cm, $name, $submission, $context) {
  * @param object - a context object
  * @return array
  */
-function get_graders($cm, $user, $context) {
+function kalvidassign_get_graders($cm, $user, $context) {
     //potential graders
     $potgraders = get_users_by_capability($context, 'mod/kalvidassign:gradesubmission', '', '', '', '', '', '', false, false);
 
@@ -304,7 +313,7 @@ function get_graders($cm, $user, $context) {
  * @param $info object The info used by the 'emailteachermail' language string
  * @return string
  */
-function email_teachers_text($info) {
+function kalvidassign_email_teachers_text($info) {
     global $DB;
 
     $param    = array('id' => $info->courseid);
@@ -329,7 +338,7 @@ function email_teachers_text($info) {
  * @param $info object The info used by the 'emailteachermailhtml' language string
  * @return string
  */
-function email_teachers_html($info) {
+function kalvidassign_email_teachers_html($info) {
     global $CFG, $DB;
 
     $param    = array('id' => $info->courseid);
@@ -348,21 +357,11 @@ function email_teachers_html($info) {
 }
 
 
-function get_assignment_users($cm) {
+function kalvidassign_get_assignment_students($cm) {
+    global $CFG;
 
     $context    = get_context_instance(CONTEXT_MODULE, $cm->id);
-    $currentgroup = groups_get_activity_group($cm);
-    $users = get_enrolled_users($context, 'mod/kalvidassign:submit', $currentgroup, 'u.id');
-
-    if ($users) {
-        $users = array_keys($users);
-        // if groupmembersonly used, remove users who are not in any group
-        if (!empty($CFG->enablegroupmembersonly) and $cm->groupmembersonly) {
-            if ($groupingusers = groups_get_grouping_members($cm->groupingid, 'u.id', 'u.id')) {
-                $users = array_intersect($users, array_keys($groupingusers));
-            }
-        }
-    }
-
+    $users = get_enrolled_users($context, 'mod/kalvidassign:submit', 0, 'u.id');
+    
     return $users;
 }

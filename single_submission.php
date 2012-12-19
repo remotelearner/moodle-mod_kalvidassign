@@ -35,15 +35,13 @@ $tilast  = optional_param('tilast', '', PARAM_TEXT);
 $page    = optional_param('page', 0, PARAM_INT);
 
 
-list($cm, $course, $kalvidassignobj) = validate_cmid($id);
+list($cm, $course, $kalvidassignobj) = kalvidassign_validate_cmid($id);
 
 require_login($course->id, false, $cm);
 
 if (!confirm_sesskey()) {
     print_error('confirmsesskeybad', 'error');
 }
-
-require_course_login($course->id, true, $cm);
 
 global $CFG, $PAGE, $OUTPUT, $USER;
 
@@ -70,12 +68,68 @@ require_capability('mod/kalvidassign:gradesubmission', $context);
 add_to_log($course->id, 'kalvidassign', 'view submission page', 'single_submission.php?id='.$cm->id, $kalvidassignobj->id, $cm->id);
 
 // Get a single submission record
-$submission = get_submission($cm->instance, $userid);
+$submission = kalvidassign_get_submission($cm->instance, $userid);
 
-// Process submitted data
-$submitted_data = data_submitted();
+// Get the submission user and the time they submitted the video
+$param = array('id' => $userid);
+$user  = $DB->get_record('user', $param);
 
-if ($submitted_data) {
+$submissionuserpic = $OUTPUT->user_picture($user);
+$submission_modified = ' - ';
+$datestring_late = ' - ';
+$datestring = ' - ';
+
+$submissionuserinfo = fullname($user);
+
+// Get grading information
+$grading_info    = grade_get_grades($cm->course, 'mod', 'kalvidassign', $cm->instance, array($userid));
+$gradingdisabled = $grading_info->items[0]->grades[$userid]->locked || $grading_info->items[0]->grades[$userid]->overridden;
+
+// Get marking teacher information and the time the submission was marked
+$teacher = '';
+if (!empty($submission)) {
+    $datestring_late     = kalvidassign_display_lateness($submission->timemodified, $kalvidassignobj->timedue);
+    $submission_modified = userdate($submission->timemodified);
+    $datestring          = userdate($submission->timemarked)."&nbsp; (".format_time(time() - $submission->timemarked).")";
+
+	$submissionuserinfo .= '<br />'.$submission_modified.$datestring_late;
+
+    $param   = array('id' => $submission->teacher);
+    $teacher = $DB->get_record('user', $param);
+}
+
+$markingteacherpic   = '';
+$markingtreacherinfo = '';
+
+if (!empty($teacher)) {
+    $markingteacherpic   = $OUTPUT->user_picture($teacher);
+    $markingtreacherinfo = fullname($teacher).'<br />'.$datestring;
+}
+
+// Setup form data
+$formdata                           = new stdClass();
+$formdata->submissionuserpic        = $submissionuserpic;
+$formdata->submissionuserinfo       = $submissionuserinfo;
+$formdata->markingteacherpic        = $markingteacherpic;
+$formdata->markingteacherinfo       = $markingtreacherinfo;
+$formdata->grading_info             = $grading_info;
+$formdata->gradingdisabled          = $gradingdisabled;
+$formdata->cm                       = $cm;
+$formdata->context                  = $context;
+$formdata->cminstance               = $kalvidassignobj;
+$formdata->submission               = $submission;
+$formdata->userid                   = $userid;
+$formdata->enableoutcomes           = $CFG->enableoutcomes;
+$formdata->submissioncomment_editor = array('text'=> $submission->submissioncomment, 'format'=>FORMAT_HTML);
+$formdata->tifirst                  = $tifirst;
+$formdata->tilast                   = $tilast;
+$formdata->page                     = $page;
+
+$submissionform = new kalvidassign_singlesubmission_form(null, $formdata);
+
+if ($submissionform->is_cancelled()) {
+    redirect($previousurl);
+} else if ($submitted_data = $submissionform->get_data()) {
 
     if (!isset($submitted_data->cancel) &&
         isset($submitted_data->xgrade) &&
@@ -128,7 +182,7 @@ if ($submitted_data) {
         if ($updategrade) {
             $kalvidassignobj->cmidnumber = $cm->idnumber;
 
-            $gradeobj = get_submission_grade_object($kalvidassignobj->id, $userid);
+            $gradeobj = kalvidassign_get_submission_grade_object($kalvidassignobj->id, $userid);
 
             kalvidassign_grade_item_update($kalvidassignobj, $gradeobj);
 
@@ -145,13 +199,13 @@ if ($submitted_data) {
             $data = array();
             $grading_info = grade_get_grades($course->id, 'mod', 'kalvidassign',
                                              $kalvidassignobj->id, $userid);
-    
+
             if (!empty($grading_info->outcomes)) {
                 foreach($grading_info->outcomes as $n => $old) {
                     $name = 'outcome_'.$n;
-                    if (isset($submitted_data->{$name}[$userid]) and 
+                    if (isset($submitted_data->{$name}[$userid]) and
                         $old->grades[$userid]->grade != $submitted_data->{$name}[$userid]) {
-                            
+
                         $data[$n] = $submitted_data->{$name}[$userid];
                     }
                 }
@@ -170,101 +224,29 @@ if ($submitted_data) {
 }
 
 // Try connection
-$result = login(true, '');
+$result = local_kaltura_login(true, '');
 
 if ($result) {
 
-    if (has_mobile_flavor_enabled() && get_enable_html5()) {
-        $uiconf_id = get_player_uiconf('presentation');
-        $url = new moodle_url(htm5_javascript_url($uiconf_id));
+    if (local_kaltura_has_mobile_flavor_enabled() && local_kaltura_get_enable_html5()) {
+        $uiconf_id = local_kaltura_get_player_uiconf('presentation');
+        $url = new moodle_url(local_kaltura_htm5_javascript_url($uiconf_id));
         $PAGE->requires->js($url, true);
         $PAGE->requires->js('/local/kaltura/js/frameapi.js', true);
     }
 }
 
-$param = array('id' => $userid);
-$user = $DB->get_record('user', $param);
-
-$pageheading = get_string('gradesubmission', 'kalvidassign');
-
-
-
-echo $OUTPUT->heading($pageheading . ': ' . fullname($user));
-
-// Get the submission user and the time they submitted the video
-$submissionuserpic   = $OUTPUT->user_picture($user);
-$submission_modified = ' - ';
-$datestring_late     = ' - ';
-$datestring          = ' - ';
-$teacher             = '';
-$grading_info        = '';
-$gradingdisabled     = '';
-
-if (!empty($submission)) {
-    $datestring_late = display_lateness($submission->timemodified, $kalvidassignobj->timedue);
-    $submission_modified = userdate($submission->timemodified);
-    $datestring = userdate($submission->timemarked)."&nbsp; (".format_time(time() - $submission->timemarked).")";
-
-    $param = array('id' => $submission->teacher);
-    $teacher = $DB->get_record('user', $param);
-
-
-}
-
-// Get grading information
-$grading_info = grade_get_grades($cm->course, 'mod', 'kalvidassign', $cm->instance, array($userid));
-$gradingdisabled = $grading_info->items[0]->grades[$userid]->locked || $grading_info->items[0]->grades[$userid]->overridden;
-
-
-$submissionuserinfo = fullname($user) . '<br />'.$submission_modified . $datestring_late;
-
-// Get marking teacher information and the time the submission was marked
-
-$markingteacherpic = '';
-$markingtreacherinfo = '';
-
-if (!empty($teacher)) {
-    $markingteacherpic = $OUTPUT->user_picture($teacher);
-    $markingtreacherinfo = fullname($teacher) . '<br />' . $datestring;
-}
-
-
-
-// Setup form data
-$formdata = new stdClass();
-$formdata->submissionuserpic = $submissionuserpic;
-$formdata->submissionuserinfo = $submissionuserinfo;
-$formdata->markingteacherpic = $markingteacherpic;
-$formdata->markingteacherinfo = $markingtreacherinfo;
-$formdata->grading_info = $grading_info;
-$formdata->gradingdisabled = $gradingdisabled;
-$formdata->cm = $cm;
-$formdata->context = $context;
-$formdata->cminstance = $kalvidassignobj;
-$formdata->submission = $submission;
-$formdata->userid = $userid;
-$formdata->enableoutcomes = $CFG->enableoutcomes;
-$formdata->submissioncommentformat = FORMAT_HTML;
-$formdata->tifirst = $tifirst;
-$formdata->tilast = $tilast;
-$formdata->page = $page;
-
-$submissionform =  new singlesubmissionform(null, $formdata);
-
-if ($submissionform->is_cancelled()) {
-    print_object($previousurl);
-    redirect($previousurl);
-}
-
-if (has_mobile_flavor_enabled() && get_enable_html5()) {
-    $uiconf_id = get_player_uiconf('player');
-    $url = new moodle_url(htm5_javascript_url($uiconf_id));
+if (local_kaltura_has_mobile_flavor_enabled() && local_kaltura_get_enable_html5()) {
+    $uiconf_id = local_kaltura_get_player_uiconf('player');
+    $url = new moodle_url(local_kaltura_htm5_javascript_url($uiconf_id));
     $PAGE->requires->js($url, true);
     $url = new moodle_url('/local/kaltura/js/frameapi.js');
     $PAGE->requires->js($url, true);
 }
+$pageheading = get_string('gradesubmission', 'kalvidassign');
 
 echo $OUTPUT->header();
+echo $OUTPUT->heading($pageheading.': '.fullname($user));
 
 $submissionform->set_data($formdata);
 
