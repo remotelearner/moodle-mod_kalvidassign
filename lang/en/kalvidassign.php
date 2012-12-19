@@ -2,6 +2,7 @@
 
 $string['modulenameplural'] = 'Kaltura Video Assignments';
 $string['modulename'] = 'Kaltura Video Assignment';
+$string['modulename_help'] = 'The Kaltura Video Assignment enables a teacher to create assignments that require students to upload and submit Kaltura videos. Teachers can grade student submissions and provide feedback.';
 $string['name'] = 'Name';
 $string['availabledate'] = 'Available from';
 $string['duedate'] = 'Due Date';
@@ -16,9 +17,9 @@ Only teachers who are able to grade the particular assignment are notified. So, 
 'teachers restricted to particular groups won\'t receive notification about students in other groups.';
 $string['invalidid'] = 'Invalid ID';
 $string['pluginadministration'] = 'Kaltura Video Assignment';
-$string['addvideo'] = 'Add video submission';
-$string['submitvideo'] = 'Submit video';
-$string['replacevideo'] = 'Replace video';
+$string['addvideo'] = 'Add media submission';
+$string['submitvideo'] = 'Submit media';
+$string['replacevideo'] = 'Replace media';
 $string['previewvideo'] = 'Preview';
 $string['gradesubmission'] = 'Grade submissions';
 $string['numberofsubmissions'] = 'Number of submissions: {$a}';
@@ -77,6 +78,15 @@ It is <a href="{$a->url}">available on the web site</a>.';
 $string['messageprovider:kalvidassign_updates'] = 'Kaltura Video assignment notifications';
 $string['video_preview_header'] = 'Submission preview';
 $string['kalvidassign:gradesubmission'] = 'Grade video submissions';
+$string['kalvidassign:addinstance'] = 'Add a Kaltura Video Assignment';
 $string['kalvidassign:submit'] = 'Submit videos';
 $string['grade_video_not_cache'] = 'This video may still be in the process of converting...';
 $string['noenrolledstudents'] = 'No students are enrolled in the course';
+$string['group_filter'] = 'Group Filter';
+$string['use_screen_recorder'] = 'Record screen';
+$string['use_kcw'] = 'Upload media or record from webcam';
+$string['scr_loading'] = 'Loading...';
+$string['reviewvideo'] = 'Review submission';
+$string['kalvidassign:screenrecorder'] = 'Screen recorder';
+$string['javanotenabled'] = 'Browser Java is disabled.  Please enable Java and refresh the page to use the screen recorder.';
+$string['cannotdisplaythumbnail'] = 'Unable to display thumbnail';

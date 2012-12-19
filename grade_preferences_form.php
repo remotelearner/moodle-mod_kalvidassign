@@ -29,16 +29,57 @@ require_once(dirname(dirname(dirname(__FILE__))) . '/course/moodleform_mod.php')
 require_once(dirname(__FILE__) . '/locallib.php');
 require_once($CFG->libdir.'/formslib.php');
 
-class gradepreferencesform extends moodleform {
+class kalvidassign_gradepreferences_form extends moodleform {
 
     function definition() {
-        global $CFG, $COURSE;
+        global $CFG, $COURSE, $USER;
 
         $mform =& $this->_form;
 
         $mform->addElement('hidden', 'cmid', $this->_customdata['cmid']);
 
         $mform->addElement('header', 'kal_vid_subm_hdr', get_string('optionalsettings', 'kalvidassign'));
+
+
+        $context = get_context_instance(CONTEXT_MODULE, $this->_customdata['cmid']);
+
+        $group_opt = array();
+        $groups    = array();
+
+        // If the user doesn't have access to all group print the groups they have access to
+        if (!has_capability('moodle/site:accessallgroups', $context)) {
+
+            // Determine the groups mode
+            switch($this->_customdata['groupmode']) {
+                case NOGROUPS:
+                    // No groups, do nothing
+                    break;
+                case SEPARATEGROUPS:
+                    $groups = groups_get_all_groups($COURSE->id, $USER->id);
+                    break;
+                case VISIBLEGROUPS:
+                    $groups = groups_get_all_groups($COURSE->id);
+                    break;
+            }
+
+            $group_opt[0] = get_string('all', 'mod_kalvidassign');
+
+            foreach ($groups as $group_obj) {
+                $group_opt[$group_obj->id] = $group_obj->name;
+            }
+
+        } else {
+            $groups = groups_get_all_groups($COURSE->id);
+
+            $group_opt[0] = get_string('all', 'mod_kalvidassign');
+
+            foreach ($groups as $group_obj) {
+                $group_opt[$group_obj->id] = $group_obj->name;
+            }
+
+        }
+
+        $mform->addElement('select', 'group_filter', get_string('group_filter', 'mod_kalvidassign'), $group_opt);
 
         $filters = array(KALASSIGN_ALL => get_string('all', 'kalvidassign'),
                                 KALASSIGN_REQ_GRADING => get_string('reqgrading', 'kalvidassign'),

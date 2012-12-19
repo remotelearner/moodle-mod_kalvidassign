@@ -51,9 +51,27 @@ require_course_login($course->id, true, $cm);
 
 global $SESSION, $CFG;
 
-$PAGE->requires->js('/local/kaltura/js/jquery.js', true);
-$PAGE->requires->js('/local/kaltura/js/swfobject.js', true);
-$PAGE->requires->js('/local/kaltura/js/kcwcallback.js', true);
+// Connect to Kaltura
+$kaltura        = new kaltura_connection();
+$connection     = $kaltura->get_connection(true, KALTURA_SESSION_LENGTH);
+$partner_id     = '';
+$sr_unconf_id   = '';
+$host           = '';
+
+if ($connection) {
+
+    // If a connection is made then include the JS libraries
+    $partner_id    = local_kaltura_get_partner_id();
+    $sr_unconf_id  = local_kaltura_get_player_uiconf('mymedia_screen_recorder');
+    $host = local_kaltura_get_host();
+    $url = new moodle_url("{$host}/p/{$partner_id}/sp/{$partner_id}/ksr/uiconfId/{$sr_unconf_id}");
+    $PAGE->requires->js($url, true);
+    $PAGE->requires->js('/local/kaltura/js/screenrecorder.js', true);
+    
+    $PAGE->requires->js('/local/kaltura/js/jquery.js', true);
+    $PAGE->requires->js('/local/kaltura/js/swfobject.js', true);
+    $PAGE->requires->js('/local/kaltura/js/kcwcallback.js', true);
+}
 
 
 $PAGE->set_url('/mod/kalvidassign/view.php', array('id'=>$id));
@@ -68,9 +86,9 @@ add_to_log($course->id, 'kalvidassign', 'view assignment details', 'view.php?id=
 $completion = new completion_info($course);
 $completion->set_module_viewed($cm);
 
-if (has_mobile_flavor_enabled() && get_enable_html5()) {
-    $uiconf_id = get_player_uiconf('player');
-    $url = new moodle_url(htm5_javascript_url($uiconf_id));
+if (local_kaltura_has_mobile_flavor_enabled() && local_kaltura_get_enable_html5()) {
+    $uiconf_id = local_kaltura_get_player_uiconf('player');
+    $url = new moodle_url(local_kaltura_htm5_javascript_url($uiconf_id));
     $PAGE->requires->js($url, true);
     $url = new moodle_url('/local/kaltura/js/frameapi.js');
     $PAGE->requires->js($url, true);
@@ -87,8 +105,6 @@ echo $renderer->display_mod_info($kalvidassign, $context);
 echo format_module_intro('kalvidassign', $kalvidassign, $cm->id);
 echo $OUTPUT->box_end();
 
-$kaltura        = new kaltura_connection();
-$connection     = $kaltura->get_connection(true, 86400);
 $entry_object   = null;
 $disabled       = false;
 
@@ -105,19 +121,21 @@ if (!has_capability('mod/kalvidassign:gradesubmission', $context)) {
     $submission = $DB->get_record('kalvidassign_submission', $param);
 
     if (!empty($submission->entry_id)) {
-        $entry_object = get_ready_entry_object($submission->entry_id, false);
+        $entry_object = local_kaltura_get_ready_entry_object($submission->entry_id, false);
     }
 
     echo $renderer->display_submission($cm, $USER->id, $entry_object);
 
 
-    if (assignemnt_submission_expired($kalvidassign)) {
+    if (kalvidassign_assignemnt_submission_expired($kalvidassign)) {
         $disabled = true;
     }
 
     if (empty($submission->entry_id) && empty($submission->timecreated)) {
 
         echo $renderer->display_student_submit_buttons($cm, $USER->id, $disabled);
+
+        echo $renderer->render_progress_bar();
 
         echo $renderer->display_grade_feedback($kalvidassign, $context);
     } else {
@@ -128,24 +146,26 @@ if (!has_capability('mod/kalvidassign:gradesubmission', $context)) {
 
         echo $renderer->display_student_resubmit_buttons($cm, $USER->id, $disabled);
 
+        echo $renderer->render_progress_bar();
+
         echo $renderer->display_grade_feedback($kalvidassign, $context);
 
-        // Check if the repository plug-in exists.  Add Kaltura video to 
+        // Check if the repository plug-in exists.  Add Kaltura video to
         // the Kaltura category
         if (!empty($submission->entry_id)) {
-    
+
             $category = false;
-            $enabled = kaltura_repository_enabled();
-    
-            if ($enabled) {
+            $enabled = local_kaltura_kaltura_repository_enabled();
+
+            if ($enabled && $connection) {
                 require_once($CFG->dirroot.'/repository/kaltura/locallib.php');
 
                 // Create the course category
-                $category = create_course_category($connection, $course->id);
+                $category = repository_kaltura_create_course_category($connection, $course->id);
             }
-            
+
             if (!empty($category) && $enabled) {
-                add_video_course_reference($connection, $course->id, array($submission->entry_id));
+                repository_kaltura_add_video_course_reference($connection, $course->id, array($submission->entry_id));
             }
         }
 
@@ -161,28 +181,32 @@ if (!has_capability('mod/kalvidassign:gradesubmission', $context)) {
                             'base',
                             'dom',
                             'node',
-                            'yui-min',
-                            'event-focus',
-                            'json-parse-min',
+                            'io-base',
+                            'json-parse',
                             ),
         'strings' => array(
                 array('upload_successful', 'local_kaltura'),
                 array('video_converting', 'kalvidassign'),
                 array('previewvideo', 'kalvidassign'),
+                array('javanotenabled', 'kalvidassign')
                 )
         );
 
     $courseid               = get_courseid_from_context($PAGE->context);
     $conversion_script      = '';
-    $kcw                    = get_kcw('assign_uploader', true);
+    $kcw                    = local_kaltura_get_kcw('assign_uploader', true);
     $markup                 = $renderer->display_all_panel_markup();
-    $properties             = get_video_properties();
+    $properties             = kalvidassign_get_video_properties();
     $conversion_script      = "../../local/kaltura/check_conversion.php?courseid={$courseid}&entry_id=";
+    $login_session          = '';
+    
+    if ($connection) {
+        $login_session      = $connection->getKs();
+    }
 
-    $PAGE->requires->js_init_call('M.local_kaltura.video_assignment', array($conversion_script,
-                                                                            $markup,
-                                                                            $properties,
-                                                                            $kcw,
+    $PAGE->requires->js_init_call('M.local_kaltura.video_assignment', array($conversion_script, $markup,
+                                                                            $properties, $kcw,
+                                                                            $login_session, $partner_id,
                                                                             $conversion_script), false, $jsmodule);
 
 } else {
